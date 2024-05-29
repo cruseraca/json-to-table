@@ -1,0 +1,40 @@
+<!-- views/templateTable.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Template Table</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Example</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $index, $user := .}}
+            <tr>
+                <td>{{add $index 1}}</td>
+                <td>{{.Name}}</td>
+                <td>{{.Type}}</td>
+                <td>{{.Value}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</body>
+</html>

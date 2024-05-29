@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"fmt"
+	"html/template"
+	"log"
 	"net/http"
 	"reflect"
 
@@ -14,6 +16,7 @@ type checkJson struct {
 
 type CheckJsonHandler interface {
 	CheckJson(c echo.Context) error
+	GenerateTable(c echo.Context) error
 }
 
 func NewCheckJsonHandler() CheckJsonHandler {
@@ -55,6 +58,55 @@ func (h *checkJson) CheckJson(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, responseApp)
+}
+
+func (h *checkJson) GenerateTable(c echo.Context) error {
+
+	//validate json
+	var bodyJson map[string]any
+
+	err := c.Bind(&bodyJson)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, models.Response{
+			ResponseCode:    http.StatusBadRequest,
+			ResponseMessage: "invalid JSON type",
+		})
+	}
+
+	//define FuncMap
+	funcMap := template.FuncMap{
+		"add": func(a, b int) int {
+			return a + b
+		},
+	}
+
+	//parse template
+	tmpl, err := template.New("templateTable.html").Funcs(funcMap).ParseFiles("views/templateTable.html")
+	if err != nil {
+		log.Println(err)
+		return c.JSON(http.StatusInternalServerError, models.Response{
+			ResponseCode:    http.StatusInternalServerError,
+			ResponseMessage: "template not found",
+		})
+	}
+
+
+	//get listed name - value pairs
+	fields := getNameValuePairs(bodyJson, "", []models.Field{})
+
+	responseData := models.CheckJsonResponse{
+		ListOfFields:   fields,
+	}
+
+	err = tmpl.Execute(c.Response(), responseData.ListOfFields)
+	if err != nil {
+		log.Println(err)
+		return c.JSON(http.StatusBadRequest, models.Response{
+			ResponseCode:    http.StatusBadRequest,
+			ResponseMessage: "error parsing template",
+		})
+	}
+	return nil
 }
 
 func maxDepth(data map[string]any, currentDepth int) int {
