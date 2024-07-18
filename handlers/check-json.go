@@ -9,6 +9,7 @@ import (
 
 	"github.com/cruseraca/json-to-table/models"
 	"github.com/labstack/echo/v4"
+	"gitlab.com/c0b/go-ordered-json"
 )
 
 type checkJson struct {
@@ -17,6 +18,7 @@ type checkJson struct {
 type CheckJsonHandler interface {
 	CheckJson(c echo.Context) error
 	GenerateTable(c echo.Context) error
+	GenerateTableOrder(c echo.Context) error
 }
 
 func NewCheckJsonHandler() CheckJsonHandler {
@@ -90,12 +92,11 @@ func (h *checkJson) GenerateTable(c echo.Context) error {
 		})
 	}
 
-
 	//get listed name - value pairs
 	fields := getNameValuePairs(bodyJson, "", []models.Field{})
 
 	responseData := models.CheckJsonResponse{
-		ListOfFields:   fields,
+		ListOfFields: fields,
 	}
 
 	err = tmpl.Execute(c.Response(), responseData.ListOfFields)
@@ -107,6 +108,72 @@ func (h *checkJson) GenerateTable(c echo.Context) error {
 		})
 	}
 	return nil
+}
+
+func (h *checkJson) GenerateTableOrder(c echo.Context) error {
+
+	//validate json
+	bodyJson := ordered.NewOrderedMap()
+
+	err := c.Bind(&bodyJson)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, models.Response{
+			ResponseCode:    http.StatusBadRequest,
+			ResponseMessage: "invalid JSON type",
+		})
+	}
+
+	//define FuncMap
+	funcMap := template.FuncMap{
+		"add": func(a, b int) int {
+			return a + b
+		},
+	}
+
+	//parse template
+	tmpl, err := template.New("templateTable.html").Funcs(funcMap).ParseFiles("views/templateTable.html")
+	if err != nil {
+		log.Println(err)
+		return c.JSON(http.StatusInternalServerError, models.Response{
+			ResponseCode:    http.StatusInternalServerError,
+			ResponseMessage: "template not found",
+		})
+	}
+
+	//get listed name - value pairs
+	fields := getNameValuePairOrder(bodyJson, "", []models.Field{})
+
+	responseData := models.CheckJsonResponse{
+		ListOfFields: fields,
+	}
+
+	err = tmpl.Execute(c.Response(), responseData.ListOfFields)
+	if err != nil {
+		log.Println(err)
+		return c.JSON(http.StatusBadRequest, models.Response{
+			ResponseCode:    http.StatusBadRequest,
+			ResponseMessage: "error parsing template",
+		})
+	}
+	
+	return nil
+}
+
+func getNameValuePairOrder(bodyJson *ordered.OrderedMap, prefix string, fields []models.Field) ([]models.Field) {
+	kvPairs := bodyJson.EntriesIter()
+	for {
+		pair, ok := kvPairs()
+		if !ok {
+			break
+		}
+		switch v := pair.Value.(type) {
+		case *ordered.OrderedMap:
+			fields = getNameValuePairOrder(v, pair.Key + " >> ", fields)
+		default:
+			fields = append(fields, models.Field{Name: prefix + pair.Key, Value: v})
+		}
+	}
+	return fields
 }
 
 func maxDepth(data map[string]any, currentDepth int) int {
